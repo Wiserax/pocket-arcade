@@ -287,7 +287,7 @@ export class Robot extends Game {
     return [
       ["Parts recovered", this.s.nodes.filter((n) => n.gone).length],
       ["Moves", this.s.moves],
-      ["Best pace", `${Math.floor(this.s.time)}s`],
+      ["Time taken", `${Math.floor(this.s.time)}s`],
     ];
   }
   render(c) {

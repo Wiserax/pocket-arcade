@@ -214,7 +214,7 @@ export class Cleanup extends Game {
         id: "head",
         label: this.s.attachment ? "Wide head" : "Quick head",
         sub: this.s.attachment
-          ? "Collects heavy clutter"
+          ? "Heavy clutter · slower movement"
           : "Move faster · small items",
       },
       {

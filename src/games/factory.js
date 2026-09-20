@@ -332,15 +332,8 @@ export class Factory extends Game {
         this.burst(s.selected ? 310 : 110, 345, C.blue);
       }
     }
-    if (id === "type") {
-      cost = 25;
-      if (s.gold >= cost) {
-        s.gold -= cost;
-        g.type = 1 - g.type;
-        this.audio("build");
-      }
-    }
   }
+
   actions() {
     const s = this.s,
       g = s.guns[s.selected];

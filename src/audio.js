@@ -115,6 +115,7 @@ export class AudioEngine {
       this.master = c.createGain();
       this.master.gain.value = 0.8;
       const limiter = c.createDynamicsCompressor();
+      this.limiter = limiter;
       limiter.threshold.value = -12;
       limiter.knee.value = 8;
       limiter.ratio.value = 4;

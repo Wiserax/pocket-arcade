@@ -169,11 +169,23 @@ export class Ricochet extends Game {
     for (let i = 0; i < n; i++) {
       const col = (i + Math.floor(this.seed % 6)) % 6,
         row = Math.floor(i / 6);
-      const type = i % 7 === 0 && s.room > 1 ? 2 : i % 5 === 0 ? 1 : 0;
+      const type =
+        i % 7 === 0 && s.room > 1
+          ? 2
+          : i % 5 === 0
+            ? 1
+            : this.level >= 6 && s.room > 1 && i % 4 === 2
+              ? 3
+              : 0;
       s.enemies.push({
         x: 55 + col * 62,
         y: 128 + row * 64,
-        hp: type === 2 ? 1 : 2 + Math.floor((s.room + this.difficulty) / 3),
+        hp:
+          type === 2
+            ? 1
+            : type === 3
+              ? 2 + Math.floor(this.difficulty / 3)
+              : 2 + Math.floor((s.room + this.difficulty) / 3),
         max: 0,
         type,
         shield: type === 1,
@@ -352,7 +364,8 @@ export class Ricochet extends Game {
       }
       s.turn++;
       for (const e of s.enemies) {
-        e.y += (e.type === 1 ? 29 : 38) * (e.frozen ? 0.5 : 1);
+        e.y +=
+          (e.type === 1 ? 29 : e.type === 3 ? 57 : 38) * (e.frozen ? 0.5 : 1);
         e.frozen = 0;
         if (e.y > 450) {
           s.hp--;
@@ -436,10 +449,16 @@ export class Ricochet extends Game {
   objective() {
     return this.s.draft
       ? "Choose a power for the next room"
-      : "Drag to aim · release to fire · bank around shields";
+      : this.level >= 6 && this.s.enemies.some((e) => e.type === 3 && e.hp > 0)
+        ? "Orange runners advance faster · slow them or clear them first"
+        : "Drag to aim · release to fire · bank around shields";
+  }
+  stars() {
+    return this.s.win ? (this.s.hp === 4 ? 3 : this.s.hp >= 2 ? 2 : 1) : 0;
   }
   details() {
     return [
+      ["Hearts protected", `${Math.max(0, this.s.hp)}/4`],
       ["Raiders cleared", this.s.kills],
       ["Volleys fired", this.s.shots],
       ["Rooms cleared", this.s.room - (this.s.win ? 0 : 1)],
@@ -607,8 +626,21 @@ export class Ricochet extends Game {
             e.type,
             e.type === 4 ? 32 : 22,
             s.time,
-            e.hit ? "#fff8cf" : undefined,
+            e.hit ? "#fff8cf" : e.type === 3 ? "#efa45a" : undefined,
           );
+          if (e.type === 3) {
+            for (const dx of [-8, 8])
+              line(
+                c,
+                [
+                  [e.x + dx - 4, e.y + 17],
+                  [e.x + dx, e.y + 23],
+                  [e.x + dx + 4, e.y + 17],
+                ],
+                "#ffe2a1",
+                3,
+              );
+          }
           if (e.shield)
             rr(c, e.x - 24, e.y + 10, 48, 14, 5, "#67b9d9", "#203346", 3);
           text(c, Math.ceil(e.hp), e.x, e.y - 30, 16);

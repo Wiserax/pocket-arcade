@@ -7,6 +7,7 @@ import { masteryCards, recordMastery } from "./mastery.js";
 import { restorable, upgradeRun } from "./run-state.js";
 import { makePreview } from "./preview.js";
 import { VERSION } from "./version.js";
+import { nextTry, starGoal } from "./coaching.js";
 const app = document.querySelector("#app");
 const data = load();
 const audio = new AudioEngine(data.settings);
@@ -34,6 +35,7 @@ let pendingImport = null;
 let galleryScene = null;
 let waitingWorker = null;
 let gameMessage = null;
+let modalReturnFocus = null;
 const progress = (id) => (data.games[id] ??= defaultGame());
 function readLatestProgress() {
   try {
@@ -121,8 +123,8 @@ function lobby(id = selected?.id) {
   history.replaceState(null, "", `#${id}`);
   let body = "";
   if (tab === "journey") {
-    const resuming = p.active && p.active.level === level;
-    body = `<div class="lobby-title"><div class="eyebrow">${g.tag}</div><h1>${g.name}</h1><p>${g.desc}</p></div><div class="lobby-art"><canvas id="lobby-preview" aria-label="${g.name} game preview"></canvas><div class="stage-label">${biome(g, level)}</div></div><div class="journey-controls">${button("prev", "‹", "icon-btn", 'aria-label="Previous stage" ' + (level <= 1 ? "disabled" : ""))}<div class="journey-stage"><h2>${g.unit} ${level}</h2><small>${p.stars[level] ? "★".repeat(p.stars[level]) + " · Cleared" : "A new adventure awaits"}</small></div>${button("next", "›", "icon-btn", 'aria-label="Next stage" ' + (level >= p.level ? "disabled" : ""))}</div>${button("start", `${resuming ? "CONTINUE" : g.verb.toUpperCase()}<small>${resuming ? "Your saved adventure is waiting" : "Jump straight into the game"}</small>`, "btn play-main")}${p.active ? `<div class="resume-note">${resuming ? "Progress saved · you can take your time" : button("continue-saved", `Resume saved ${g.unit.toLowerCase()} ${p.active.level}`, "small-link")}</div>` : ""}<div class="sub-options">${button("daily", `${icon("calendar", 31)}<span>Daily challenge<small>Same seed all day · local best</small></span>`, "sub-option")}${button("how", `${icon("eye", 31)}<span>How to play<small>One minute to learn</small></span>`, "sub-option")}</div>`;
+    const resuming = p.active && !p.active.daily && p.active.level === level;
+    body = `<div class="lobby-title"><div class="eyebrow">${g.tag}</div><h1>${g.name}</h1><p>${g.desc}</p></div><div class="lobby-art"><canvas id="lobby-preview" aria-label="${g.name} game preview"></canvas><div class="stage-label">${biome(g, level)}</div></div><div class="journey-controls">${button("prev", "‹", "icon-btn", 'aria-label="Previous stage" ' + (level <= 1 ? "disabled" : ""))}<div class="journey-stage"><h2>${g.unit} ${level}</h2><small>${p.stars[level] ? "★".repeat(p.stars[level]) + " · Cleared" : "A new adventure awaits"}</small></div>${button("next", "›", "icon-btn", 'aria-label="Next stage" ' + (level >= p.level ? "disabled" : ""))}</div>${button("start", `${resuming ? "CONTINUE" : g.verb.toUpperCase()}<small>${resuming ? "Your saved adventure is waiting" : "Jump straight into the game"}</small>`, "btn play-main")}${p.active ? `<div class="resume-note">${resuming ? "Progress saved · you can take your time" : button("continue-saved", p.active.daily ? `Resume daily · ${p.active.daily}` : `Resume saved ${g.unit.toLowerCase()} ${p.active.level}`, "small-link")}</div>` : ""}<div class="sub-options">${button("daily", `${icon("calendar", 31)}<span>Daily challenge<small>Same seed all day · local best</small></span>`, "sub-option")}${button("how", `${icon("eye", 31)}<span>How to play<small>One minute to learn</small></span>`, "sub-option")}</div>`;
   } else if (tab === "workshop") {
     const u = g.upgrade,
       lv = p.perks[u.key] || 0,
@@ -333,18 +335,28 @@ function openModal(html) {
   closeModal(false);
   paused = true;
   clearInput();
+  modalReturnFocus = document.activeElement;
+  app.inert = true;
   const el = document.createElement("div");
   el.className = "modal-shade";
-  el.innerHTML = `<section class="modal" role="dialog" aria-modal="true">${html}</section>`;
+  el.innerHTML = `<section class="modal" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="dialog-title">${html}</section>`;
   document.body.append(el);
   modal = el;
-  el.querySelector("button")?.focus();
+  if (el.querySelector(".result-body"))
+    el.querySelector(".modal").classList.add("result-dialog");
+  const heading = el.querySelector("h2");
+  if (heading) heading.id = "dialog-title";
+  el.querySelector(".modal").focus({ preventScroll: true });
 }
 function closeModal(resume = true) {
   if (modal) {
     galleryScene = null;
     modal.remove();
     modal = null;
+    app.inert = false;
+    if (modalReturnFocus?.isConnected)
+      modalReturnFocus.focus({ preventScroll: true });
+    modalReturnFocus = null;
   }
   if (resume) paused = false;
 }
@@ -352,7 +364,7 @@ function pause() {
   if (!game || game.s.done) return;
   if (!snapshot()) return;
   openModal(
-    `<div class="eyebrow">TAKE YOUR TIME</div><h2>Adventure paused</h2><p>Your progress is saved. Come back whenever you’re ready.</p>${button("resume", "Keep playing")}${button("leave", "Save & leave", "btn secondary")}${button("settings", "Sound & settings", "btn secondary")}${button("restart-confirm", "Restart this adventure", "small-link")}`,
+    `<div class="eyebrow">TAKE YOUR TIME</div><h2>Adventure paused</h2><p>Your progress is saved. Come back whenever you’re ready.</p>${button("resume", "Keep playing")}${button("leave", "Save & leave", "btn secondary")}${button("how", "How to play", "btn secondary")}${button("settings", "Sound & settings", "btn secondary")}${button("restart-confirm", "Restart this adventure", "small-link")}`,
   );
 }
 function result() {
@@ -416,7 +428,7 @@ function result() {
   persist();
   const details = g.details();
   openModal(
-    `<div class="result-icon">${icon(g.s.win ? "trophy" : "shield", 87)}</div><div class="eyebrow">${g.s.win ? "ADVENTURE COMPLETE" : "EVERY RUN COUNTS"}</div><h2>${g.s.reason || "A little progress"}</h2>${g.s.win ? `<div class="stars">${"★".repeat(g.stars())}</div>` : "<p>Your earned coins are safe. Try another approach or visit the workshop.</p>"}<div class="reward">${icon("coin", 39)}+${reward}</div><div class="result-rows">${details.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>${button(g.s.win && !r.daily ? "continue-next" : "retry", g.s.win && !r.daily ? "Next adventure" : "Play again")}${button("leave", "Back to the journey", "btn secondary")}`,
+    `<div class="result-body"><div class="result-icon">${icon(g.s.win ? "trophy" : "shield", 64)}</div><div class="eyebrow">${g.s.win ? "ADVENTURE COMPLETE" : "EVERY RUN COUNTS"}</div><h2>${g.s.reason || "A little progress"}</h2>${g.s.win ? `<div class="stars">${"★".repeat(g.stars())}</div>` : `<p>Your earned coins are safe.</p><div class="retry-tip"><b>TRY THIS NEXT</b><p>${nextTry(r.game, g.s)}</p></div>`}<div class="reward">${icon("coin", 39)}+${reward}</div><div class="result-rows">${details.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div></div><div class="result-actions">${button(g.s.win && !r.daily ? "continue-next" : "retry", g.s.win && !r.daily ? "Next adventure" : "Play again")}${button("leave", "Back to the journey", "btn secondary")}</div>`,
   );
   if (newMastery.length)
     modal
@@ -541,7 +553,7 @@ function how() {
     drill: [
       "Drag toward the rock to steer and drill. WASD also works.",
       "Gold and crystals fill your bag. Heat slows you down.",
-      "Return to the surface to bank cargo. Reach the target before time runs out.",
+      "Return to the surface to bank cargo. Later expeditions also require the marked ancient core. Reach both goals before time runs out.",
     ],
     harbor: [
       "Each boat moves only in its arrow direction.",
@@ -550,7 +562,7 @@ function how() {
     ],
     train: [
       "Tap a dangerous enemy to focus your guns.",
-      "Steam surge briefly dodges attacks and accelerates firing.",
+      "Switch away from marked rails before artillery strikes. Steam surge briefly makes the train invulnerable.",
       "Tap a wagon to select it, then refit. At stations choose the next route.",
     ],
     mech: [
@@ -566,11 +578,11 @@ function how() {
     cleanup: [
       "Drag to steer the vacuum. Your bag has limited capacity.",
       "Return to the sorting station at the bottom to unload.",
-      "A wide head collects heavy clutter. Filter prevents collecting unneeded items.",
+      "The wide head collects heavy clutter but moves slower. Filter prevents collecting items after their quota is filled.",
     ],
   };
   openModal(
-    `<div class="result-icon">${icon("eye", 75)}</div><h2>${selected.name}</h2><div class="result-rows">${instructions[selected.id].map((v, i) => `<p style="text-align:left;margin:12px 0"><b style="color:#ffdb7a">${i + 1}.</b> ${v}</p>`).join("")}</div>${button("close-settings", "Got it")}`,
+    `<div class="result-icon">${icon("eye", 75)}</div><h2>${selected.name}</h2><div class="result-rows">${instructions[selected.id].map((v, i) => `<p style="text-align:left;margin:12px 0"><b style="color:#ffdb7a">${i + 1}.</b> ${v}</p>`).join("")}</div><div class="star-goal">${icon("star", 24)}<span>${starGoal(selected.id)}</span></div>${button("close-settings", "Got it")}`,
   );
 }
 app.addEventListener("click", (e) => {
@@ -640,9 +652,9 @@ document.addEventListener("click", (e) => {
     lobby("worlds");
   } else if (a === "start") {
     const active = progress(selected.id).active;
-    if (active && active.level !== level)
+    if (active && (active.daily || active.level !== level))
       openModal(
-        `<h2>Start ${selected.unit.toLowerCase()} ${level}?</h2><p>This replaces the unfinished adventure at ${selected.unit.toLowerCase()} ${active.level}. Your completed stages, coins, and workshop remain saved.</p>${button("start-selected", "Start selected adventure")}${button("close-settings", "Keep saved adventure", "btn secondary")}`,
+        `<h2>Start ${selected.unit.toLowerCase()} ${level}?</h2><p>This replaces ${active.daily ? "your unfinished daily challenge" : `the unfinished adventure at ${selected.unit.toLowerCase()} ${active.level}`}. Your completed stages, coins, and workshop remain saved.</p>${button("start-selected", "Start selected adventure")}${button("close-settings", "Keep saved adventure", "btn secondary")}`,
       );
     else start();
   } else if (a === "start-selected") start({ fresh: true });
@@ -737,8 +749,33 @@ document.addEventListener("input", (e) => {
   if (k === "sfx") audio.play("coin");
 });
 window.addEventListener("keydown", (e) => {
+  if (modal && e.key === "Tab") {
+    const fields = [
+      ...modal.querySelectorAll("button:not(:disabled), input, a[href]"),
+    ];
+    const first = fields[0],
+      last = fields.at(-1);
+    if (
+      e.shiftKey &&
+      (document.activeElement === first ||
+        document.activeElement === modal.querySelector(".modal"))
+    ) {
+      e.preventDefault();
+      last?.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first?.focus();
+    }
+    return;
+  }
   if (e.key === "Escape") {
-    if (modal) closeModal();
+    if (modal && game?.s.done) {
+      const exit = modal.querySelector(
+        '[data-do="leave"], [data-do="back-gallery"]',
+      );
+      if (exit) exit.click();
+      else closeModal();
+    } else if (modal) closeModal();
     else pause();
     return;
   }
@@ -752,11 +789,13 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("keyup", (e) => game?.input.keys.delete(e.key));
 window.addEventListener("blur", () => {
+  audio.tick(false);
   clearInput();
   if (game && !game.s.done && !paused) pause();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
+    audio.tick(false);
     snapshot();
     clearInput();
     if (game && !game.s.done && !paused) pause();

@@ -71,12 +71,23 @@ export class Mech extends Game {
         dashCD: 0,
         hitCD: 0,
         hazards:
-          level > 1
-            ? [
-                { x: 105, y: 220 },
-                { x: 315, y: 385 },
-              ]
-            : [],
+          level === 1
+            ? []
+            : [
+                [
+                  { x: 105, y: 205 },
+                  { x: 315, y: 205 },
+                  { x: 210, y: 390 },
+                ],
+                [
+                  { x: 105, y: 220 },
+                  { x: 315, y: 385 },
+                ],
+                [
+                  { x: 115, y: 305 },
+                  { x: 305, y: 305 },
+                ],
+              ][level % 3],
       });
   }
   update(dt) {
@@ -330,16 +341,6 @@ export class Mech extends Game {
       }
       return;
     }
-    if (id === "cycle" && s.phase === "build") {
-      const old = s.parts[s.selected],
-        next = (old + 1) % 6,
-        cost = COST[next] - Math.floor(COST[old] * 0.8);
-      if (s.gold >= cost) {
-        s.gold -= cost;
-        s.parts[s.selected] = next;
-        this.audio("build");
-      }
-    }
     if (id === "launch" && s.phase === "build") {
       const st = mechStats(s.parts);
       if (!st.weapons || st.need > st.energy) return;
@@ -357,10 +358,7 @@ export class Mech extends Game {
   }
   actions() {
     const s = this.s,
-      st = mechStats(s.parts),
-      old = s.parts[s.selected],
-      next = (old + 1) % 6,
-      cost = COST[next] - Math.floor(COST[old] * 0.8);
+      st = mechStats(s.parts);
     return s.phase === "build"
       ? [
           {
@@ -407,7 +405,7 @@ export class Mech extends Game {
   details() {
     return [
       ["Targets scrapped", this.s.kills],
-      ["Scrap recovered", this.s.gold],
+      ["Scrap remaining", this.s.gold],
       ["Arena reached", this.s.arena],
     ];
   }

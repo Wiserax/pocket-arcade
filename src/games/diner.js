@@ -1,4 +1,5 @@
 import { Game, choice } from "../core.js";
+import { dinerScenery } from "../diner-art.js";
 import {
   bg,
   rr,
@@ -300,7 +301,7 @@ export class Diner extends Game {
   details() {
     return [
       ["Happy guests", this.s.served],
-      ["Tips earned", this.s.gold],
+      ["Tips remaining", this.s.gold],
       ["Guests missed", this.s.lost],
     ];
   }
@@ -342,6 +343,7 @@ export class Diner extends Game {
       rr(c, 14 + i * 49, 77, 49, 25, 3, i % 2 ? palette[3] : "#f4ddac", null);
       circle(c, 38 + i * 49, 98, 24, i % 2 ? palette[3] : "#f4ddac", null);
     }
+    dinerScenery(c, theme, s.time);
     for (let i = 0; i < 4; i++) {
       const x = 68 + i * 96;
       rr(c, x - 39, 260, 78, 43, 9, palette[3]);

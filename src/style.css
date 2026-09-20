@@ -1168,3 +1168,74 @@ h3 {
   font-size: 15px;
   color: #fff0c8;
 }
+
+.retry-tip {
+  background: #102c3f88;
+  border: 1px solid #758b8b;
+  border-radius: 13px;
+  padding: 12px 15px;
+  text-align: left;
+}
+.retry-tip > b {
+  color: #ffdc7b;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+}
+.retry-tip p {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.star-goal {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 13px;
+  background: #183248;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+.star-goal svg {
+  flex: none;
+}
+
+.modal.result-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: 92dvh;
+  padding: 18px;
+}
+.result-body {
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 0 5px;
+}
+.result-body .result-icon {
+  margin-bottom: 8px;
+}
+.result-body h2 {
+  font-size: 28px;
+}
+.result-body .reward {
+  margin: 14px 0;
+}
+.result-actions {
+  flex: none;
+  padding-top: 9px;
+  border-top: 1px solid #a5c1bd44;
+  margin-top: 10px;
+}
+.result-actions .btn {
+  margin-top: 6px;
+  min-height: 44px;
+  padding: 10px;
+  font-size: 19px;
+}
+@media (max-height: 640px) {
+  .result-body .result-icon {
+    display: none;
+  }
+}
