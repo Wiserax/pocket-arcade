@@ -555,7 +555,6 @@ export class Train extends Game {
           );
         }
         bar(c, e.x - 44, e.y - 45, 88, 7, e.hp / e.max, C.red);
-        text(c, "IRON VULTURE", e.x, e.y - 56, 12, "#ffdb87");
         if (e.id === s.focus) circle(c, e.x, e.y, 48, "#00000000", C.gold, 2);
         continue;
       }
@@ -670,17 +669,23 @@ export class Train extends Game {
     }
     bar(c, 61, 541, 298, 9, s.hp / 100);
     bar(c, 61, 553, 298, 4, s.shield / 64, C.blue);
+    const boss = s.enemies.find((e) => e.type === 4 && e.hp > 0);
     panel(
       c,
-      s.station
-        ? s.departure
-          ? "THE DEPOT"
-          : "WAYSTATION"
-        : `${["PRAIRIE LINE", "COPPER CANYON", "PINE EXPRESS", "SNOWBOUND", "EMBER ROUTE", "LAST EXPRESS"][region]} · ${s.leg}`,
-      s.station
-        ? "Choose a wagon, then refit it below"
-        : "Three tracks. One way home.",
+      boss
+        ? "IRON VULTURE"
+        : s.station
+          ? s.departure
+            ? "THE DEPOT"
+            : "WAYSTATION"
+          : `${["PRAIRIE LINE", "COPPER CANYON", "PINE EXPRESS", "SNOWBOUND", "EMBER ROUTE", "LAST EXPRESS"][region]} · ${s.leg}`,
+      boss
+        ? `${Math.ceil(boss.hp)} / ${boss.max} HP · Dodge the marked rails`
+        : s.station
+          ? "Choose a wagon, then refit it below"
+          : "Three tracks. One way home.",
     );
+    if (boss) bar(c, 34, 62, 352, 5, boss.hp / boss.max, C.red);
     if (s.station) {
       rr(c, 48, 111, 324, 96, 17, "#20364beb", "#e7cc88", 3);
       text(c, "THE SIGNAL IS GREEN", 210, 141, 24);
