@@ -7,6 +7,7 @@ export function upgradeRun(run) {
     next.state.drillCell ??= -1;
     next.state.fullNotified ??= false;
   }
+  if (next.game === "mech") next.state.chassis ??= 0;
   if (next.game === "train") next.state.captainSpawned ??= false;
   if (next.game === "worlds") {
     next.state.palette ??= 0;

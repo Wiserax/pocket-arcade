@@ -31,7 +31,7 @@ const OFF = [
   [-23, 20],
   [23, 20],
 ];
-export function mechStats(parts) {
+export function mechStats(parts, chassis = 0) {
   const batteries = parts.filter((p) => p === 5).length,
     armor = parts.filter((p) => p === 4).length,
     weapons = parts.filter((p) => p > 0 && p < 4).length;
@@ -41,8 +41,8 @@ export function mechStats(parts) {
       (a, p) => a + (p === 2 ? 2 : p === 1 || p === 3 ? 1 : 0),
       0,
     ),
-    speed: 143 - armor * 18,
-    maxHP: 100 + armor * 35,
+    speed: (chassis === 1 ? 108 : 143) - armor * 18,
+    maxHP: (chassis === 1 ? 125 : 100) + armor * 35,
     weapons,
   };
 }
@@ -52,6 +52,7 @@ export class Mech extends Game {
     if (!saved)
       Object.assign(this.s, {
         phase: "build",
+        chassis: 0,
         parts: [1, 0, 5, 0],
         selected: 1,
         gold: 75 + (perks.spares || 0) * 5,
@@ -93,16 +94,16 @@ export class Mech extends Game {
   update(dt) {
     const s = this.s;
     if (s.phase !== "fight") return;
-    const st = mechStats(s.parts);
+    const st = mechStats(s.parts, s.chassis);
     s.phaseTime += dt;
     s.dash = Math.max(0, s.dash - dt);
     s.dashCD = Math.max(0, s.dashCD - dt);
     s.hitCD = Math.max(0, s.hitCD - dt);
     moveStick(this, s.player, dt, st.speed * (s.dash > 0 ? 2.3 : 1), {
-      x: 36,
-      y: 100,
-      w: 348,
-      h: 407,
+      x: 46,
+      y: 130,
+      w: 328,
+      h: 363,
     });
     s.spawn -= dt;
     if (s.spawn <= 0 && s.arenaKills + s.enemies.length < s.goal) {
@@ -327,6 +328,17 @@ export class Mech extends Game {
   }
   action(id) {
     const s = this.s;
+    if (id === "chassis" && s.phase === "build" && s.arena === 1) {
+      const oldMax = mechStats(s.parts, s.chassis).maxHP;
+      s.chassis = s.chassis === 1 ? 0 : 1;
+      s.hp = Math.min(
+        mechStats(s.parts, s.chassis).maxHP,
+        (s.hp * mechStats(s.parts, s.chassis).maxHP) / oldMax,
+      );
+      this.audio("build");
+      this.emit(210, 260, s.chassis ? "#efb768" : "#8cd5e6", 16);
+      return;
+    }
     if (id.startsWith("fit:") && s.phase === "build") {
       const next = Number(id.split(":")[1]),
         old = s.parts[s.selected];
@@ -342,7 +354,7 @@ export class Mech extends Game {
       return;
     }
     if (id === "launch" && s.phase === "build") {
-      const st = mechStats(s.parts);
+      const st = mechStats(s.parts, s.chassis);
       if (!st.weapons || st.need > st.energy) return;
       s.phase = "fight";
       s.hp = Math.min(st.maxHP, s.hp + 15);
@@ -358,9 +370,20 @@ export class Mech extends Game {
   }
   actions() {
     const s = this.s,
-      st = mechStats(s.parts);
+      st = mechStats(s.parts, s.chassis);
     return s.phase === "build"
       ? [
+          ...(s.arena === 1
+            ? [
+                {
+                  id: "chassis",
+                  label: s.chassis ? "Crawler chassis" : "Scout chassis",
+                  sub: s.chassis
+                    ? "125 hull · 108 speed · switch"
+                    : "100 hull · 143 speed · switch",
+                },
+              ]
+            : []),
           {
             id: "launch",
             label: `Arena ${s.arena}`,
@@ -384,7 +407,7 @@ export class Mech extends Game {
         ];
   }
   stats() {
-    const st = mechStats(this.s.parts);
+    const st = mechStats(this.s.parts, this.s.chassis);
     return this.s.phase === "build"
       ? [
           ["SCRAP", this.s.gold],
@@ -416,8 +439,22 @@ export class Mech extends Game {
     c.scale(scale, scale);
     c.rotate(angle + Math.PI / 2);
     shadow(c, 0, 30, 34);
-    rr(c, -22, -30, 44, 63, 12, "#547b94");
-    rr(c, -11, -22, 22, 34, 9, "#8cd5e6");
+    if (s.chassis === 1) {
+      for (const tx of [-35, 23]) {
+        rr(c, tx, -35, 12, 74, 5, "#293b45");
+        for (let tread = 0; tread < 8; tread++)
+          rr(c, tx + 2, -32 + tread * 9, 8, 5, 1, "#738589", null);
+      }
+      rr(c, -25, -32, 50, 68, 7, "#ad7e4c");
+      rr(c, -12, -22, 24, 38, 5, "#efb768");
+    } else {
+      for (const dx of [-28, 21]) {
+        rr(c, dx, -27, 7, 16, 3, "#314d60");
+        rr(c, dx, 18, 7, 16, 3, "#314d60");
+      }
+      rr(c, -22, -30, 44, 63, 12, "#547b94");
+      rr(c, -11, -22, 22, 34, 9, "#8cd5e6");
+    }
     for (let i = 0; i < 4; i++) {
       const [dx, dy] = OFF[i],
         p = s.parts[i];
@@ -498,7 +535,7 @@ export class Mech extends Game {
       c,
       s.phase === "build" ? "BUILD YOUR SCRAP MECH" : `SCRAPYARD ${s.arena}`,
       s.phase === "build"
-        ? "A physical build. No hidden synergy rules."
+        ? `${s.chassis ? "Crawler" : "Scout"} · ${mechStats(s.parts, s.chassis).speed} speed · ${mechStats(s.parts, s.chassis).maxHP} hull`
         : "Guns track nearby threats · keep moving to dodge",
     );
     if (s.phase === "build") {
@@ -653,6 +690,6 @@ export class Mech extends Game {
     this.drawMech(c, s.player.x, s.player.y, 1, s.player.angle);
     if (s.dash > 0)
       circle(c, s.player.x, s.player.y, 38, "#7fddff22", "#9ceaff", 2);
-    bar(c, 30, 539, 360, 11, s.hp / mechStats(s.parts).maxHP);
+    bar(c, 30, 539, 360, 11, s.hp / mechStats(s.parts, s.chassis).maxHP);
   }
 }

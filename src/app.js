@@ -1,7 +1,15 @@
 import { GAMES, byId } from "./catalog.js";
 import { W, H, hash, clamp, uid } from "./core.js";
 import { icon } from "./icons.js";
-import { load, save, defaultGame, settle, buyPerk, SAVE_KEY } from "./store.js";
+import {
+  load,
+  save,
+  defaultGame,
+  settle,
+  buyPerk,
+  perkCap,
+  SAVE_KEY,
+} from "./store.js";
 import { AudioEngine } from "./audio.js";
 import { masteryCards, recordMastery } from "./mastery.js";
 import { restorable, upgradeRun } from "./run-state.js";
@@ -33,6 +41,7 @@ let screen = "home",
 let lastActions = "";
 let pendingImport = null;
 let galleryScene = null;
+let galleryPage = 0;
 let waitingWorker = null;
 let gameMessage = null;
 let modalReturnFocus = null;
@@ -66,6 +75,17 @@ function wallet(n) {
 function masteryBook(id, p) {
   const cards = masteryCards(id, p);
   return `<section class="mastery-book"><h3>Mastery book <small>${cards.filter((c) => c.complete).length}/${cards.length}</small></h3><p>Optional challenges to try at your own pace.</p>${cards.map((c) => `<article class="mastery-card ${c.complete ? "earned" : ""}"><div class="mastery-mark">${icon(c.complete ? "trophy" : "star", 31)}</div><div><strong>${c.title}</strong><p>${c.description}</p>${c.complete ? "<small>Complete ✓</small>" : `<div class="mastery-track"><i style="width:${(100 * c.value) / c.target}%"></i></div><small>${c.value}/${c.target}</small>`}</div></article>`).join("")}</section>`;
+}
+function roomGallery(g, p) {
+  const rooms = [...p.gallery].sort((a, b) => b.level - a.level);
+  const pages = Math.max(1, Math.ceil(rooms.length / 12));
+  galleryPage = Math.max(0, Math.min(pages - 1, galleryPage));
+  const visible = rooms.slice(galleryPage * 12, galleryPage * 12 + 12);
+  const pager =
+    pages > 1
+      ? `<div class="journey-controls gallery-pager">${button("gallery-prev", "‹", "icon-btn", 'aria-label="Newer rooms" ' + (galleryPage === 0 ? "disabled" : ""))}<span>Page ${galleryPage + 1} / ${pages}</span>${button("gallery-next", "›", "icon-btn", 'aria-label="Older rooms" ' + (galleryPage === pages - 1 ? "disabled" : ""))}</div>`
+      : "";
+  return `<section id="room-gallery"><h3>Your miniature neighborhood</h3><p>${rooms.length} saved ${rooms.length === 1 ? "room" : "rooms"}. Every completed project keeps its furniture exactly where you left it.</p>${pager}<div class="gallery-grid">${visible.map((r) => `<button class="gallery-card" data-do="visit:${r.level}"><canvas data-room="${r.level}" aria-label="Project ${r.level}"></canvas><strong>Project ${r.level}</strong><small>${biome(g, r.level)} · Visit →</small></button>`).join("") || "<p>Your finished rooms will appear here.</p>"}</div>${pager}</section>`;
 }
 function button(action, label, cls = "btn", extra = "") {
   return `<button class="${cls}" data-do="${action}" ${extra}>${label}</button>`;
@@ -128,10 +148,11 @@ function lobby(id = selected?.id) {
   } else if (tab === "workshop") {
     const u = g.upgrade,
       lv = p.perks[u.key] || 0,
+      maxLevel = perkCap(u.key),
       b = p.perks.payout || 0;
-    body = `<section class="content"><div class="eyebrow">BETWEEN ADVENTURES</div><h1>The workshop</h1><p>Keep what you earn. Make small improvements for the next ${g.unit.toLowerCase()}. Your choices during play still matter most.</p><article class="upgrade-card"><div class="upgrade-head">${icon(u.icon, 51)}<div><h3>${u.name}</h3><div class="pips">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("")}</div></div></div><p>${u.desc}. Level ${lv}/5.</p>${button(`buy:${u.key}`, lv >= 5 ? "Fully upgraded" : `${icon("coin", 24)} ${60 + lv * 65} · Upgrade`, "btn", lv >= 5 || p.coins < 60 + lv * 65 ? "disabled" : "")}</article><article class="upgrade-card"><div class="upgrade-head">${icon("coin", 49)}<div><h3>Salvage bonus</h3><div class="pips">${Array.from({ length: 5 }, (_, i) => `<i class="${i < b ? "on" : ""}"></i>`).join("")}</div></div></div><p>+5% end-of-run coins per level. Current bonus: ${b * 5}%. Does not change your in-game resource balance.</p>${button("buy:payout", b >= 5 ? "Fully upgraded" : `${icon("coin", 24)} ${60 + b * 65} · Upgrade`, "btn", b >= 5 || p.coins < 60 + b * 65 ? "disabled" : "")}</article><p>Earn coins through play. There are no purchases or ads.</p></section>`;
+    body = `<section class="content"><div class="eyebrow">BETWEEN ADVENTURES</div><h1>The workshop</h1><p>Keep what you earn. Make small improvements for the next ${g.unit.toLowerCase()}. Your choices during play still matter most.</p><article class="upgrade-card"><div class="upgrade-head">${icon(u.icon, 51)}<div><h3>${u.name}</h3><div class="pips">${Array.from({ length: maxLevel }, (_, i) => `<i class="${i < lv ? "on" : ""}"></i>`).join("")}</div></div></div><p>${u.desc}. Level ${lv}/${maxLevel}.</p>${button(`buy:${u.key}`, lv >= maxLevel ? "Fully upgraded" : `${icon("coin", 24)} ${60 + lv * 65} · Upgrade`, "btn", lv >= maxLevel || p.coins < 60 + lv * 65 ? "disabled" : "")}</article><article class="upgrade-card"><div class="upgrade-head">${icon("coin", 49)}<div><h3>Salvage bonus</h3><div class="pips">${Array.from({ length: 5 }, (_, i) => `<i class="${i < b ? "on" : ""}"></i>`).join("")}</div></div></div><p>+5% end-of-run coins per level. Current bonus: ${b * 5}%. Does not change your in-game resource balance.</p>${button("buy:payout", b >= 5 ? "Fully upgraded" : `${icon("coin", 24)} ${60 + b * 65} · Upgrade`, "btn", b >= 5 || p.coins < 60 + b * 65 ? "disabled" : "")}</article><p>Earn coins through play. There are no purchases or ads.</p></section>`;
   } else {
-    body = `<section class="content"><div class="eyebrow">YOUR JOURNEY SO FAR</div><h1>Adventure book</h1><p>Every attempt teaches you something. Your records stay on this device.</p><div class="record-grid"><div><b>${p.runs}</b><small>Completed attempts</small></div><div><b>${p.wins}</b><small>Adventures won</small></div><div><b>${p.best}</b><small>Best score</small></div><div><b>${Object.values(p.stars).reduce((a, b) => a + b, 0)}</b><small>Stars collected</small></div></div><h3 style="margin-top:25px">${g.unit} collection</h3><div class="medals">${
+    body = `<section class="content"><div class="eyebrow">YOUR JOURNEY SO FAR</div><h1>Adventure book</h1><p>Every attempt teaches you something. Your records stay on this device.</p><div class="record-grid"><div><b>${p.runs}</b><small>Completed attempts</small></div><div><b>${p.wins}</b><small>Adventures won</small></div><div><b>${p.best}</b><small>Best score</small></div><div><b>${Object.values(p.stars).reduce((a, b) => a + b, 0)}</b><small>Stars collected</small></div></div>${g.id === "worlds" ? roomGallery(g, p) : ""}<details class="collection-book" ${Object.keys(p.stars).length <= 30 ? "open" : ""}><summary>${g.unit} collection · ${Object.keys(p.stars).length} cleared</summary><div class="medals">${
       Object.entries(p.stars)
         .map(
           ([l, n]) =>
@@ -139,7 +160,7 @@ function lobby(id = selected?.id) {
         )
         .join("") ||
       '<p class="footer-note">Your first completed adventure will live here.</p>'
-    }</div>${g.id === "worlds" ? `<h3>Your miniature neighborhood</h3><p>Revisit the places you restored. Your last 30 rooms keep their furniture exactly where you left it.</p><div class="gallery-grid">${p.gallery.map((r) => `<button class="gallery-card" data-do="visit:${r.level}"><canvas data-room="${r.level}" aria-label="Project ${r.level}"></canvas><strong>Project ${r.level}</strong><small>${biome(g, r.level)} · Visit →</small></button>`).join("") || "<p>Your finished rooms will appear here.</p>"}</div>` : ""}<h3>Daily records</h3>${
+    }</div></details><h3>Daily records</h3>${
       Object.entries(p.daily)
         .slice(-7)
         .reverse()
@@ -389,7 +410,7 @@ function result() {
       data.awards = data.awards.slice(-200);
       p.gallery = p.gallery.filter((room) => room.level !== r.level);
       p.gallery.push({ level: r.level, seed: r.seed, state: g.save() });
-      p.gallery = p.gallery.slice(-30);
+      p.gallery = p.gallery.slice(-999);
       if (p.active?.id === r.id) p.active = null;
       persist();
     }
@@ -423,7 +444,7 @@ function result() {
   if (awarded && r.game === "worlds" && g.s.win && !r.daily) {
     p.gallery = p.gallery.filter((room) => room.level !== r.level);
     p.gallery.push({ level: r.level, seed: r.seed, state: g.save() });
-    p.gallery = p.gallery.slice(-30);
+    p.gallery = p.gallery.slice(-999);
   }
   persist();
   const details = g.details();
@@ -621,7 +642,14 @@ document.addEventListener("click", (e) => {
     history.replaceState(null, "", "#");
     home();
   } else if (a === "settings") settings();
-  else if (a.startsWith("visit:")) {
+  else if (a === "gallery-prev" || a === "gallery-next") {
+    galleryPage += a === "gallery-next" ? 1 : -1;
+    lobby("worlds");
+    document.querySelector("#room-gallery")?.scrollIntoView({
+      behavior: data.settings.motion ? "smooth" : "instant",
+      block: "start",
+    });
+  } else if (a.startsWith("visit:")) {
     const room = progress("worlds").gallery.find(
       (r) => r.level === Number(a.split(":")[1]),
     );

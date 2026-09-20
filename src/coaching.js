@@ -40,6 +40,8 @@ export function starGoal(id) {
         "3 stars: finish without Undo or Inspect. Up to 3 uses earns 2 stars.",
       harbor:
         "3 stars: no blocked attempts or hints. Fewer than 3 earns 2 stars.",
+      ricochet:
+        "3 stars: protect all 4 hearts. Finish with 2–3 hearts for 2 stars.",
       diner:
         "3 stars: miss no guests. Fewer than 3 missed guests earns 2 stars.",
       train: "3 stars: finish above 75% hull. Above 35% earns 2 stars.",

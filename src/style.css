@@ -1239,3 +1239,22 @@ h3 {
     display: none;
   }
 }
+
+.collection-book {
+  margin: 22px 0;
+}
+.collection-book summary {
+  cursor: pointer;
+  padding: 14px 0;
+  min-height: 48px;
+  font-weight: 800;
+  color: #ffe3a3;
+}
+#room-gallery {
+  scroll-margin-top: 18px;
+}
+.gallery-pager span {
+  min-width: 90px;
+  text-align: center;
+  font-weight: 800;
+}

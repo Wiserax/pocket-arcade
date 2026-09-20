@@ -22,6 +22,7 @@ const PERKS = new Set([
   "brush",
   "payout",
 ]);
+export const perkCap = (key) => (key === "recovery" ? 3 : 5);
 export const defaultGame = () => ({
   level: 1,
   coins: 0,
@@ -50,7 +51,13 @@ export function cleanGame(v) {
       d.stars[key] = Math.max(0, Math.min(3, Math.floor(value)));
   for (const [key, value] of Object.entries(v.perks || {}))
     if (PERKS.has(key) && Number.isFinite(value))
-      d.perks[key] = Math.max(0, Math.min(5, Math.floor(value)));
+      d.perks[key] = Math.max(0, Math.min(perkCap(key), Math.floor(value)));
+  // Recovery above three could not restore any additional hearts. Refund those legacy ranks once.
+  if (Number.isFinite(v.perks?.recovery)) {
+    const oldRank = Math.max(0, Math.min(5, Math.floor(v.perks.recovery)));
+    for (let rank = 3; rank < oldRank; rank++)
+      d.coins = Math.min(1e8, d.coins + 60 + rank * 65);
+  }
   for (const [key, value] of Object.entries(v.daily || {}))
     if (/^\d{4}-\d{2}-\d{2}$/.test(key) && Number.isFinite(value))
       d.daily[key] = Math.max(0, Math.floor(value));
@@ -74,10 +81,10 @@ export function cleanGame(v) {
   if (Array.isArray(v.collection))
     d.collection = v.collection
       .filter((n) => Number.isInteger(n) && n > 0 && n < 1000)
-      .slice(-100);
+      .slice(-999);
   if (Array.isArray(v.gallery))
     d.gallery = v.gallery
-      .slice(-30)
+      .slice(-999)
       .filter(
         (r) =>
           r &&
@@ -210,7 +217,7 @@ export function buyPerk(p, key) {
   if (!PERKS.has(key)) return false;
   const lv = Number(p.perks[key]) || 0,
     cost = 60 + lv * 65;
-  if (lv >= 5 || p.coins < cost) return false;
+  if (lv >= perkCap(key) || p.coins < cost) return false;
   p.coins -= cost;
   p.perks[key] = lv + 1;
   return true;

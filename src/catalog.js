@@ -75,7 +75,7 @@ export const GAMES = [
     upgrade: {
       key: "recovery",
       name: "Field recovery",
-      desc: "+1 healing after each second room",
+      desc: "+1 heart restored after rooms 2 and 4, up to full health",
       icon: "heart",
     },
     biomes: [
