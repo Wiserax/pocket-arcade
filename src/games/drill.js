@@ -32,7 +32,7 @@ export class Drill extends Game {
                     ? 4
                     : 1;
           if (level > 3 && y > 6 && roll > 0.97) type = 5;
-          grid.push({ x, y, type });
+          grid.push({ x, y, type, drop: 0 });
         }
       if (level > 1) grid[122 + (level % 6)].type = 6;
       Object.assign(this.s, {
@@ -45,6 +45,8 @@ export class Drill extends Game {
         timeLeft: 130,
         target: 48 + Math.floor(this.difficulty) * 3,
         drill: 0,
+        drillCell: -1,
+        fullNotified: false,
         vent: 0,
         extracts: 0,
         cut: 0,
@@ -71,48 +73,40 @@ export class Drill extends Game {
     const gx = clamp(Math.floor((p.x - 10) / 40), 0, 9),
       gy = clamp(Math.floor((p.y - 90) / 32), 0, 13),
       cell = s.grid[gy * 10 + gx];
-    if (cell.type && moving) {
+    if (cell.type && (moving || this.input.down)) {
       s.drilling = true;
+      if (s.drillCell !== gy * 10 + gx) s.drill = 0;
+      s.drillCell = gy * 10 + gx;
       s.drill += dt * (cell.type === 4 ? 0.4 : cell.type === 3 ? 0.65 : 1);
       p.x = old.x + (p.x - old.x) * 0.25;
       p.y = old.y + (p.y - old.y) * 0.25;
       s.heat += dt * 10;
       if (s.drill > 0.28) {
-        const valuable = [2, 3, 6].includes(cell.type);
-        if (s.cargo >= s.capacity && valuable) {
-          this.toast("Bag full. Return to the surface depot.");
-          p.x = old.x;
-          p.y = old.y;
-        } else {
-          const value =
-            cell.type === 2
-              ? 3
-              : cell.type === 3
-                ? 7
-                : cell.type === 6
-                  ? 10
-                  : 0;
-          if (cell.type === 6) {
-            s.core = true;
-            this.toast("Ancient core secured. Bring it home!");
-          }
-          if (cell.type === 5) {
-            s.timeLeft -= 7;
-            this.toast("Gas pocket! Seven seconds lost.");
-            this.audio("alert");
-          }
-          s.heat += cell.type === 4 ? 18 : cell.type >= 2 ? 12 : 7;
-          s.cargo = Math.min(s.capacity, s.cargo + value);
-          cell.type = 0;
-          s.cut++;
-          this.emit(
-            30 + gx * 40,
-            106 + gy * 32,
-            value ? C.gold : "#caa986",
-            10,
-          );
-          this.audio(value ? "coin" : "hit");
+        const value =
+          cell.type === 2 ? 3 : cell.type === 3 ? 7 : cell.type === 6 ? 10 : 0;
+        if (cell.type === 6) {
+          s.core = true;
+          this.toast("Ancient core secured. Bring it home!");
         }
+        if (cell.type === 5) {
+          s.timeLeft -= 7;
+          this.toast("Gas pocket! Seven seconds lost.");
+          this.audio("alert");
+        }
+        s.heat += cell.type === 4 ? 18 : cell.type >= 2 ? 12 : 7;
+        const carried = Math.min(s.capacity - s.cargo, value);
+        s.cargo += carried;
+        cell.drop = (cell.drop || 0) + value - carried;
+        if (cell.drop > 0 && !s.fullNotified) {
+          s.fullNotified = true;
+          this.toast(
+            "Bag full · extra ore stays on the ground. Return to bank it.",
+          );
+        }
+        cell.type = 0;
+        s.cut++;
+        this.emit(30 + gx * 40, 106 + gy * 32, value ? C.gold : "#caa986", 10);
+        this.audio(value ? "coin" : "hit");
         s.drill = 0;
       }
     } else {
@@ -120,10 +114,18 @@ export class Drill extends Game {
       s.heat = Math.max(0, s.heat - dt * 8);
     }
     s.heat = Math.min(100, s.heat);
+    if (cell.drop > 0 && s.cargo < s.capacity) {
+      const take = Math.min(cell.drop, s.capacity - s.cargo);
+      cell.drop -= take;
+      s.cargo += take;
+      this.audio("coin");
+      this.emit(p.x, p.y, C.gold, 7);
+    }
     if (p.y < 113 && (s.cargo > 0 || (s.core && !s.coreBanked))) {
       s.bank += s.cargo;
       s.score += s.cargo * 3;
       s.cargo = 0;
+      s.fullNotified = false;
       s.extracts++;
       if (s.core) s.coreBanked = true;
       this.audio("coin");
@@ -223,6 +225,22 @@ export class Drill extends Game {
           rr(c, x, y, 40, 32, 0, "#403840", null);
           if ((cell.x * 3 + cell.y) % 7 === 0)
             circle(c, x + 15, y + 17, 2, "#7c685b", null);
+        }
+        if (cell.drop > 0) {
+          poly(
+            c,
+            [
+              [x + 10, y + 21],
+              [x + 15, y + 11],
+              [x + 24, y + 14],
+              [x + 31, y + 24],
+              [x + 13, y + 25],
+            ],
+            "#ffdc61",
+            "#956425",
+            1,
+          );
+          text(c, cell.drop, x + 22, y + 10, 12, "#fff3c9");
         }
         continue;
       }

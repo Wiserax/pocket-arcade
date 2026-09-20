@@ -7,7 +7,7 @@ import {
   line,
   bar,
   panel,
-  creature,
+  railBandit,
   cannon,
   coin,
   rock,
@@ -70,7 +70,20 @@ export class Train extends Game {
         dodged: 0,
         smoke: [],
         notice: 0,
+        captainSpawned: false,
       });
+  }
+  markTrack(track, delay = 1.7, damage = 28) {
+    const s = this.s,
+      x = TRACKS[track];
+    const marked = new Set(
+      s.barrages.filter((b) => b.timer > 0).map((b) => b.x),
+    );
+    // There must always be a safe rail. Steam surge is an extra escape, not a toll.
+    if (marked.size >= 2 && !marked.has(x)) return;
+    if (s.barrages.some((b) => b.x === x && b.timer > 0.4)) return;
+    s.barrages.push({ x, timer: delay, duration: delay, damage, hit: false });
+    this.audio("alert");
   }
   damage(amount) {
     const s = this.s;
@@ -102,14 +115,14 @@ export class Train extends Game {
     s.barrageCD -= dt;
     if (s.barrageCD <= 0) {
       s.barrageCD = Math.max(5.2, 10 - this.difficulty * 0.15 - s.leg * 0.7);
-      s.barrages.push({ x: TRACKS[s.track], timer: 1.7, hit: false });
-      this.audio("alert");
+      if (!s.enemies.some((e) => e.type === 4))
+        this.markTrack(s.track, 1.7, 25 + s.leg * 3);
     }
     for (const b of s.barrages) {
       b.timer -= dt;
       if (b.timer <= 0 && !b.hit) {
         b.hit = true;
-        if (Math.abs(s.x - b.x) < 45) this.damage(25 + s.leg * 3);
+        if (Math.abs(s.x - b.x) < 45) this.damage(b.damage || 25 + s.leg * 3);
         else {
           s.dodged++;
           s.score += 8;
@@ -122,7 +135,7 @@ export class Train extends Game {
     s.spawn -= dt;
     if (s.spawn <= 0 && s.legTime < 27) {
       const type =
-        s.nextId % 7 === 0 && (s.leg > 1 || this.level > 2)
+        s.nextId % 7 === 0 && this.level > 2
           ? 3
           : s.nextId % 6 === 0 && s.nextId > 0
             ? 2
@@ -130,8 +143,8 @@ export class Train extends Game {
               ? 1
               : 0;
       const hp =
-        (type === 3 ? 95 : type === 1 ? 76 : type === 2 ? 38 : 39) *
-        (1 + this.difficulty * 0.05 + s.leg * 0.08);
+        (type === 3 ? 88 : type === 1 ? 66 : type === 2 ? 34 : 34) *
+        (1 + this.difficulty * 0.045 + s.leg * 0.065);
       s.enemies.push({
         id: s.nextId++,
         x: 40 + this.random() * 340,
@@ -146,6 +159,23 @@ export class Train extends Game {
         0.72,
         1.65 - s.leg * 0.1 - this.difficulty * 0.018 - (s.route ? 0.28 : 0),
       );
+    }
+    if (s.leg === 3 && s.legTime > 20 && !s.captainSpawned) {
+      s.captainSpawned = true;
+      const hp = 310 + this.difficulty * 35;
+      s.enemies.push({
+        id: s.nextId++,
+        x: 210,
+        y: 105,
+        hp,
+        max: hp,
+        type: 4,
+        attack: 3,
+        flash: 0,
+        salvo: 0,
+      });
+      this.audio("alert");
+      this.toast("Iron Vulture · watch its marked rails!");
     }
     const live = s.enemies.filter((e) => e.hp > 0);
     for (let i = 0; i < 4; i++) {
@@ -200,9 +230,31 @@ export class Train extends Game {
       if (e.hp <= 0) {
         e.dead = true;
         s.kills++;
-        s.gold += 2 + s.wagons.filter((v) => v === 2).length;
-        s.score += 15;
+        s.gold +=
+          (e.type === 4 ? 35 : 2) + s.wagons.filter((v) => v === 2).length;
+        s.score += e.type === 4 ? 150 : 15;
         this.burst(e.x, e.y, "#ffd77a", 10);
+        continue;
+      }
+      if (e.type === 4) {
+        e.x = 210 + Math.sin(s.time * 0.9) * 92;
+        e.y = Math.min(135, e.y + dt * 20);
+        e.attack -= dt;
+        if (e.attack <= 0) {
+          e.attack = e.hp < e.max * 0.5 ? 3.4 : 4.8;
+          this.markTrack(s.track, 1.8, 35);
+          if (this.level >= 5 || e.hp < e.max * 0.5)
+            this.markTrack((s.track + (e.salvo++ % 2 ? 1 : 2)) % 3, 1.8, 35);
+        }
+        continue;
+      }
+      if (e.type === 1 && e.y >= 179) {
+        e.y = 179;
+        e.attack -= dt;
+        if (e.attack <= 0) {
+          e.attack = 4.5;
+          this.markTrack(s.track, 1.45, 20);
+        }
         continue;
       }
       e.y += dt * (e.type === 1 ? 22 : e.type === 2 ? 40 : 29);
@@ -260,11 +312,6 @@ export class Train extends Game {
     if (id === "boost" && s.boostCD <= 0 && !s.station) {
       s.boost = 2.4;
       s.boostCD = 14;
-      this.audio("build");
-    }
-    if (id === "swap" && s.gold >= 25) {
-      s.gold -= 25;
-      s.wagons[s.selected] = (s.wagons[s.selected] + 1) % 4;
       this.audio("build");
     }
     if (id === "refit" && s.station) {
@@ -464,7 +511,7 @@ export class Train extends Game {
         c.globalAlpha = 1;
         circle(c, b.x, 283, 24, "#dd584a44", "#ffe5a4", 2);
         text(c, "!", b.x, 282, 28);
-        bar(c, b.x - 26, 247, 52, 6, 1 - b.timer / 1.7, C.red);
+        bar(c, b.x - 26, 247, 52, 6, 1 - b.timer / (b.duration || 1.7), C.red);
       } else {
         circle(
           c,
@@ -477,17 +524,43 @@ export class Train extends Game {
       }
     }
     for (const e of s.enemies) {
-      creature(
-        c,
-        e.x,
-        e.y,
-        e.type,
-        e.type === 1 ? 25 : 19,
-        s.time,
-        e.flash ? "#fff7c9" : undefined,
-      );
-      if (e.type === 3) rr(c, e.x - 19, e.y - 6, 38, 19, 5, "#7e8fae");
-      bar(c, e.x - 20, e.y - 31, 40, 6, e.hp / e.max, C.red);
+      if (e.type === 4) {
+        shadow(c, e.x, e.y + 39, 56, 12);
+        poly(
+          c,
+          [
+            [e.x - 64, e.y + 8],
+            [e.x - 25, e.y - 14],
+            [e.x + 25, e.y - 14],
+            [e.x + 64, e.y + 8],
+            [e.x + 31, e.y + 20],
+            [e.x - 31, e.y + 20],
+          ],
+          e.flash ? "#fff0cf" : "#6e728f",
+        );
+        rr(c, e.x - 26, e.y - 32, 52, 63, 20, e.flash ? "#fff0cf" : "#b35f58");
+        rr(c, e.x - 19, e.y - 20, 38, 19, 7, "#34354f");
+        circle(c, e.x - 8, e.y - 11, 4, "#ffda69", null);
+        circle(c, e.x + 8, e.y - 11, 4, "#ffda69", null);
+        for (const dx of [-44, 44]) {
+          circle(c, e.x + dx, e.y + 9, 13, "#d0a269");
+          line(
+            c,
+            [
+              [e.x + dx - 17, e.y + 9 + Math.sin(s.time * 30) * 5],
+              [e.x + dx + 17, e.y + 9 - Math.sin(s.time * 30) * 5],
+            ],
+            "#30334a",
+            4,
+          );
+        }
+        bar(c, e.x - 44, e.y - 45, 88, 7, e.hp / e.max, C.red);
+        text(c, "IRON VULTURE", e.x, e.y - 56, 12, "#ffdb87");
+        if (e.id === s.focus) circle(c, e.x, e.y, 48, "#00000000", C.gold, 2);
+        continue;
+      }
+      railBandit(c, e.x, e.y, e.type, s.time, e.flash > 0);
+      bar(c, e.x - 20, e.y - 44, 40, 6, e.hp / e.max, C.red);
       if (e.id === s.focus) circle(c, e.x, e.y, 31, "#00000000", C.gold, 2);
     }
     shadow(c, s.x + 7, 507, 36, 10);

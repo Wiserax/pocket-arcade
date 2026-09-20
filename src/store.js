@@ -34,6 +34,7 @@ export const defaultGame = () => ({
   active: null,
   collection: [],
   gallery: [],
+  mastery: { effort: 0, a: 0, b: 0, themes: [] },
 });
 export function cleanGame(v) {
   const d = defaultGame();
@@ -54,6 +55,22 @@ export function cleanGame(v) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(key) && Number.isFinite(value))
       d.daily[key] = Math.max(0, Math.floor(value));
   if (v.active && typeof v.active === "object") d.active = v.active;
+  if (v.mastery && typeof v.mastery === "object") {
+    for (const key of ["effort", "a", "b"])
+      if (Number.isFinite(v.mastery[key]))
+        d.mastery[key] = Math.max(
+          0,
+          Math.min(key === "effort" ? 1e8 : 1, Math.floor(v.mastery[key])),
+        );
+    if (Array.isArray(v.mastery.themes))
+      d.mastery.themes = [
+        ...new Set(
+          v.mastery.themes.filter(
+            (n) => Number.isInteger(n) && n >= 0 && n < 6,
+          ),
+        ),
+      ];
+  }
   if (Array.isArray(v.collection))
     d.collection = v.collection
       .filter((n) => Number.isInteger(n) && n > 0 && n < 1000)
@@ -92,6 +109,14 @@ export function cleanGame(v) {
             _rng: Number(r.seed) || 1,
             mode: "decorate",
             theme: Math.max(0, Math.min(5, Math.floor(r.state.theme) || 0)),
+            palette: Math.max(0, Math.min(3, Math.floor(r.state.palette) || 0)),
+            styles: Array.from({ length: 6 }, (_, i) =>
+              Math.max(0, Math.min(2, Math.floor(r.state.styles?.[i]) || 0)),
+            ),
+            flips: Array.from(
+              { length: 6 },
+              (_, i) => r.state.flips?.[i] === true,
+            ),
             floor: r.state.floor.filter(tile).slice(0, 25),
             items: r.state.items
               .filter(
@@ -168,7 +193,7 @@ export function settle(data, id, result) {
       p.stars[result.level] || 0,
       result.stars || 1,
     );
-    p.level = Math.max(p.level, result.level + 1);
+    p.level = Math.min(999, Math.max(p.level, result.level + 1));
   }
   if (result.daily) {
     p.daily[result.daily] = Math.max(
@@ -178,7 +203,7 @@ export function settle(data, id, result) {
   }
   if (result.win && !p.collection.includes(result.level))
     p.collection.push(result.level);
-  p.active = null;
+  if (!p.active || p.active.id === result.id) p.active = null;
   return true;
 }
 export function buyPerk(p, key) {

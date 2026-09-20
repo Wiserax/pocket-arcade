@@ -253,6 +253,210 @@ export function tree(c, x, y, s = 1, type = 0) {
   circle(c, 0, -42, 18, type ? "#ffd56d" : "#7ac582");
   c.restore();
 }
+export function scrapBot(c, x, y, type = 0, size = 23, t = 0, tint = null) {
+  c.save();
+  c.translate(x, y);
+  c.scale(size / 23, size / 23);
+  shadow(c, 0, 22, 23, 7);
+  const color =
+    tint || ["#b8bf8b", "#e5a852", "#919cbb", "#b591cb", "#ce7964"][type % 5];
+  const step = Math.sin(t * 9) * 3;
+  if (type === 1) {
+    for (const dx of [-17, 17]) {
+      circle(c, dx, 13, 10, "#314554");
+      line(
+        c,
+        [
+          [dx - 5, 13 - step],
+          [dx + 5, 13 + step],
+        ],
+        "#8c9ea3",
+        3,
+      );
+    }
+    poly(
+      c,
+      [
+        [-16, 9],
+        [-20, -8],
+        [0, -23],
+        [20, -8],
+        [16, 9],
+      ],
+      color,
+    );
+    rr(c, -13, -10, 26, 10, 4, "#233b4e");
+    circle(c, 0, -5, 4, "#ffe77b", null);
+    poly(
+      c,
+      [
+        [-5, -24],
+        [0, -34],
+        [5, -24],
+      ],
+      "#fff1b4",
+    );
+  } else if (type === 2) {
+    for (const dx of [-18, 18])
+      rr(c, dx - 5, 9 + Math.sign(dx) * step, 10, 15, 4, "#39495b");
+    rr(c, -24, -18, 48, 39, 7, color);
+    rr(c, -16, -9, 32, 15, 4, "#334655");
+    for (const dx of [-8, 8]) circle(c, dx, -2, 3, "#ffdc83", null);
+    rr(c, -20, 11, 40, 8, 2, "#56637b");
+    for (const dx of [-17, 17]) circle(c, dx, -13, 2, "#e5e9d5", null);
+  } else if (type === 3) {
+    for (const dx of [-23, 23])
+      line(
+        c,
+        [
+          [dx, 23],
+          [dx * 0.6, 5],
+          [0, 0],
+        ],
+        "#52627b",
+        5,
+      );
+    circle(c, 0, -1, 20, color);
+    circle(c, 0, -3, 12, "#32415b");
+    circle(c, 0, -3, 6, "#f6cc82", null);
+    for (const dx of [-19, 19]) {
+      rr(c, dx - 5, -16, 10, 30, 4, "#728499");
+      circle(c, dx, 15, 4, "#253547");
+    }
+    line(
+      c,
+      [
+        [0, -21],
+        [0, -30],
+      ],
+      "#93b0b7",
+      3,
+    );
+    circle(c, 0, -32, 4, "#df97df", null);
+  } else if (type === 4) {
+    for (const dx of [-24, 24]) {
+      rr(c, dx - 6, 6 + Math.sign(dx) * step, 12, 22, 4, "#485161");
+      rr(c, dx - 10, 22 + Math.sign(dx) * step, 20, 7, 3, "#6f7182");
+    }
+    poly(
+      c,
+      [
+        [-29, -14],
+        [-15, -29],
+        [15, -29],
+        [29, -14],
+        [25, 17],
+        [-25, 17],
+      ],
+      color,
+    );
+    rr(c, -21, -18, 42, 12, 4, "#40394a");
+    for (const dx of [-10, 10]) circle(c, dx, -12, 4, "#ffe29a", null);
+    circle(c, 0, 4, 12, "#5c4657");
+    circle(c, 0, 4, 7, "#ffbd73", null);
+    for (const dx of [-31, 31]) rr(c, dx - 7, -5, 14, 22, 4, "#a1918d");
+  } else {
+    for (const side of [-1, 1])
+      for (const dy of [-8, 10])
+        line(
+          c,
+          [
+            [side * 10, dy],
+            [side * 23, dy + step * side],
+            [side * 26, dy + 12],
+          ],
+          "#475c66",
+          4,
+        );
+    rr(c, -17, -18, 34, 34, 10, color);
+    rr(c, -12, -11, 24, 12, 5, "#2b4551");
+    circle(c, -5, -5, 3, "#f7de8c", null);
+    circle(c, 5, -5, 3, "#f7de8c", null);
+    line(
+      c,
+      [
+        [-7, 9],
+        [7, 9],
+      ],
+      "#6a7d7c",
+      3,
+    );
+  }
+  c.restore();
+}
+export function railBandit(c, x, y, type = 0, t = 0, flash = false) {
+  c.save();
+  c.translate(x, y);
+  shadow(c, 0, 22, 21, 6);
+  const coat = flash
+    ? "#fff1c9"
+    : ["#b9755e", "#8b7fbb", "#d6a552", "#7c92aa"][type % 4];
+  for (const dx of [-13, 13]) {
+    circle(c, dx, 15, 8, "#30424e");
+    line(
+      c,
+      [
+        [dx - 4, 15 - Math.sin(t * 12) * 3],
+        [dx + 4, 15 + Math.sin(t * 12) * 3],
+      ],
+      "#a1b0b0",
+      2,
+    );
+  }
+  rr(c, -19, 6, 38, 13, 5, coat);
+  rr(c, -10, -9, 20, 23, 5, coat);
+  circle(c, 0, -14, 12, flash ? "#fff1c9" : "#e9bb85");
+  rr(c, -18, -24, 36, 6, 3, "#685145");
+  rr(c, -10, -35, 20, 13, 4, type === 3 ? "#91a3b4" : "#91674a");
+  rr(c, -11, -15, 22, 6, 2, "#59464d", null);
+  circle(c, 5, -13, 2, "#f9eac3", null);
+  poly(
+    c,
+    [
+      [-7, -3],
+      [9, -5],
+      [15, 3],
+      [0, 6],
+    ],
+    type === 2 ? "#e56667" : "#cfba87",
+    null,
+  );
+  if (type === 1) {
+    line(
+      c,
+      [
+        [10, 3],
+        [27, -7],
+      ],
+      "#394454",
+      6,
+    );
+    circle(c, 26, -8, 5, "#8996ab");
+  }
+  if (type === 3) {
+    poly(
+      c,
+      [
+        [-19, -4],
+        [-4, -5],
+        [-5, 16],
+        [-12, 23],
+        [-20, 15],
+      ],
+      "#b6bfcb",
+    );
+    line(
+      c,
+      [
+        [-12, 0],
+        [-12, 16],
+      ],
+      "#77889d",
+      3,
+    );
+  }
+  c.restore();
+}
 export function rock(c, x, y, s = 1, color = "#79909c") {
   poly(
     c,

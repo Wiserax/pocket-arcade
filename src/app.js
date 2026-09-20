@@ -1,13 +1,17 @@
 import { GAMES, byId } from "./catalog.js";
-import { W, H, hash, clamp } from "./core.js";
+import { W, H, hash, clamp, uid } from "./core.js";
 import { icon } from "./icons.js";
 import { load, save, defaultGame, settle, buyPerk, SAVE_KEY } from "./store.js";
 import { AudioEngine } from "./audio.js";
+import { masteryCards, recordMastery } from "./mastery.js";
+import { restorable, upgradeRun } from "./run-state.js";
+import { makePreview } from "./preview.js";
+import { VERSION } from "./version.js";
 const app = document.querySelector("#app");
 const data = load();
 const audio = new AudioEngine(data.settings);
-const TAB_ID = crypto.randomUUID();
-const RUN_FORMAT = 3;
+const TAB_ID = uid();
+const RUN_FORMAT = 4;
 let screen = "home",
   selected = null,
   level = 1,
@@ -57,6 +61,10 @@ function biome(g, l) {
 function wallet(n) {
   return `<div class="wallet">${icon("coin", 29)}<b>${money(n)}</b></div>`;
 }
+function masteryBook(id, p) {
+  const cards = masteryCards(id, p);
+  return `<section class="mastery-book"><h3>Mastery book <small>${cards.filter((c) => c.complete).length}/${cards.length}</small></h3><p>Optional challenges to try at your own pace.</p>${cards.map((c) => `<article class="mastery-card ${c.complete ? "earned" : ""}"><div class="mastery-mark">${icon(c.complete ? "trophy" : "star", 31)}</div><div><strong>${c.title}</strong><p>${c.description}</p>${c.complete ? "<small>Complete ✓</small>" : `<div class="mastery-track"><i style="width:${(100 * c.value) / c.target}%"></i></div><small>${c.value}/${c.target}</small>`}</div></article>`).join("")}</section>`;
+}
 function button(action, label, cls = "btn", extra = "") {
   return `<button class="${cls}" data-do="${action}" ${extra}>${label}</button>`;
 }
@@ -66,9 +74,9 @@ function topbar(g = null) {
 function preview(el, g, l = 1) {
   const c = el.getContext("2d");
   el.width = 420;
-  el.height = 560;
-  const p = new g.Game(hash(g.id + "preview"), l, {});
-  p.s.time = 2.5;
+  el.height = 430;
+  const p = makePreview(g, l);
+  c.translate(0, -85);
   p.render(c);
 }
 function home() {
@@ -89,7 +97,7 @@ function home() {
     },
   ).join(
     "",
-  )}</section><p class="footer-note">Touch or mouse · Progress saves on this device · No accounts, ads, or energy timers<br>Pocket Arcade · Build 0.2</p></main>`;
+  )}</section><p class="footer-note">Touch or mouse · Progress saves on this device · No accounts, ads, or energy timers<br>Pocket Arcade · Build ${VERSION}</p></main>`;
   document
     .querySelectorAll("[data-preview]")
     .forEach((el) => preview(el, byId(el.dataset.preview)));
@@ -156,6 +164,10 @@ function lobby(id = selected?.id) {
     .join("")}</nav></main>`;
   if (tab === "journey")
     preview(document.querySelector("#lobby-preview"), g, level);
+  if (tab === "records")
+    document
+      .querySelector(".content")
+      .insertAdjacentHTML("beforeend", masteryBook(g.id, p));
   for (const el of document.querySelectorAll("[data-room]")) {
     const room = p.gallery.find((r) => r.level === Number(el.dataset.room));
     el.width = 420;
@@ -165,17 +177,22 @@ function lobby(id = selected?.id) {
     );
   }
 }
-function start({ daily = false, fresh = false, seed = null } = {}) {
+function start({
+  daily = false,
+  fresh = false,
+  seed = null,
+  dailyDate = null,
+} = {}) {
   readLatestProgress();
   const p = progress(selected.id);
-  let active = !daily && !fresh ? p.active : null;
-  const date = new Date().toISOString().slice(0, 10);
-  if (active && (active.state?.done || active.format !== RUN_FORMAT)) {
+  let active = !daily && !fresh ? upgradeRun(p.active) : null;
+  const date = dailyDate || new Date().toISOString().slice(0, 10);
+  if (active && !restorable(active, selected, RUN_FORMAT)) {
     p.active = null;
     active = null;
   }
   run = active || {
-    id: crypto.randomUUID(),
+    id: uid(),
     format: RUN_FORMAT,
     game: selected.id,
     level: daily ? 8 : level,
@@ -251,7 +268,12 @@ function snapshot(claim = false) {
       clearInput();
       return false;
     }
-    if (data.awards.includes(run.id)) return false;
+    if (data.awards.includes(run.id)) {
+      openModal(
+        `<h2>Already completed</h2><p>This adventure was finished in another tab. Its rewards and progress are already saved.</p>${button("leave", "Back to the journey")}`,
+      );
+      return false;
+    }
     run.state = game.save();
     p.active = JSON.parse(JSON.stringify(run));
     persist();
@@ -339,6 +361,31 @@ function result() {
   const g = game,
     r = run,
     p = progress(r.game);
+  if (
+    !data.awards.includes(r.id) &&
+    p.active &&
+    (p.active.id !== r.id || p.active.owner !== TAB_ID)
+  ) {
+    openModal(
+      `<h2>Continued in another tab</h2><p>The newer adventure is safe. Continue from its latest saved position.</p>${button("takeover", "Continue here")}${button("leave", "Back to the journey", "btn secondary")}`,
+    );
+    return;
+  }
+  if (r.edit) {
+    if (!data.awards.includes(r.id)) {
+      data.awards.push(r.id);
+      data.awards = data.awards.slice(-200);
+      p.gallery = p.gallery.filter((room) => room.level !== r.level);
+      p.gallery.push({ level: r.level, seed: r.seed, state: g.save() });
+      p.gallery = p.gallery.slice(-30);
+      if (p.active?.id === r.id) p.active = null;
+      persist();
+    }
+    openModal(
+      `<div class="result-icon">${icon("star", 80)}</div><div class="eyebrow">YOUR PLACE, YOUR WAY</div><h2>Changes saved</h2><p>Your room keeps its new layout, colors, and furniture finishes. Revisit it whenever you like.</p>${button("back-gallery", "Back to my neighborhood")}`,
+    );
+    return;
+  }
   const reward = Math.round(g.reward() * (1 + (p.perks.payout || 0) * 0.05));
   const result = {
     id: r.id,
@@ -349,7 +396,18 @@ function result() {
     stars: g.stars(),
     daily: r.daily,
   };
+  const previousMastery = new Set(
+    masteryCards(r.game, p)
+      .filter((c) => c.complete)
+      .map((c) => c.key),
+  );
   const awarded = settle(data, r.game, result);
+  if (awarded) recordMastery(r.game, p, g);
+  const newMastery = awarded
+    ? masteryCards(r.game, p).filter(
+        (c) => c.complete && !previousMastery.has(c.key),
+      )
+    : [];
   if (awarded && r.game === "worlds" && g.s.win && !r.daily) {
     p.gallery = p.gallery.filter((room) => room.level !== r.level);
     p.gallery.push({ level: r.level, seed: r.seed, state: g.save() });
@@ -360,12 +418,53 @@ function result() {
   openModal(
     `<div class="result-icon">${icon(g.s.win ? "trophy" : "shield", 87)}</div><div class="eyebrow">${g.s.win ? "ADVENTURE COMPLETE" : "EVERY RUN COUNTS"}</div><h2>${g.s.reason || "A little progress"}</h2>${g.s.win ? `<div class="stars">${"★".repeat(g.stars())}</div>` : "<p>Your earned coins are safe. Try another approach or visit the workshop.</p>"}<div class="reward">${icon("coin", 39)}+${reward}</div><div class="result-rows">${details.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>${button(g.s.win && !r.daily ? "continue-next" : "retry", g.s.win && !r.daily ? "Next adventure" : "Play again")}${button("leave", "Back to the journey", "btn secondary")}`,
   );
+  if (newMastery.length)
+    modal
+      .querySelector(".result-rows")
+      .insertAdjacentHTML(
+        "beforebegin",
+        `<div class="new-mastery">${icon("trophy", 27)}<div><small>NEW MASTERY</small><strong>${newMastery.map((c) => c.title).join(" · ")}</strong></div></div>`,
+      );
+  if (!awarded)
+    modal.querySelector(".reward").innerHTML = "Reward already collected";
+}
+function beginRoomEdit(l) {
+  readLatestProgress();
+  const p = progress("worlds"),
+    room = p.gallery.find((r) => r.level === l);
+  if (!room) return;
+  selected = byId("worlds");
+  level = l;
+  const initial = new selected.Game(room.seed, l, {}).s;
+  p.active = {
+    id: uid(),
+    owner: TAB_ID,
+    format: RUN_FORMAT,
+    game: "worlds",
+    level: l,
+    seed: room.seed,
+    perks: {},
+    daily: null,
+    edit: true,
+    state: {
+      ...initial,
+      ...structuredClone(room.state),
+      done: false,
+      win: false,
+      time: 0,
+      score: 0,
+      reason: "",
+      mode: "decorate",
+    },
+  };
+  persist();
+  start();
 }
 function settings() {
   const wasPlaying = screen === "play" && !paused;
   snapshot();
   openModal(
-    `<h2>Make yourself at home</h2><p>Original sounds, local progress, and room to take a break.</p><label class="setting">Sound effects <input data-setting="sfx" type="range" min="0" max="1" step="0.05" value="${data.settings.sfx}"></label><label class="setting">Music <input data-setting="music" type="range" min="0" max="1" step="0.05" value="${data.settings.music}"></label><label class="setting">Animated effects <input data-setting="motion" type="checkbox" ${data.settings.motion ? "checked" : ""}></label>${button("close-settings", "Done")}<button class="small-link" data-do="export">Export my progress</button> · <button class="small-link" data-do="import">Restore backup</button><p style="font-size:10px;margin-top:17px">Saves stay in this browser. Backups restore coins, workshops, and records; unfinished runs are excluded on import.</p><p style="font-size:12px;margin-top:14px">On your phone, use your browser menu → Add to Home Screen. The published collection works offline after its first complete download.</p>${waitingWorker ? button("update-app", "Install ready update", "btn secondary") : ""}`,
+    `<h2>Make yourself at home</h2><p>Original sounds, local progress, and room to take a break.</p><label class="setting">Sound effects <input data-setting="sfx" type="range" min="0" max="1" step="0.05" value="${data.settings.sfx}"></label><label class="setting">Music <input data-setting="music" type="range" min="0" max="1" step="0.05" value="${data.settings.music}"></label><label class="setting">Extra effects & camera shake <input data-setting="motion" type="checkbox" ${data.settings.motion ? "checked" : ""}></label>${button("close-settings", "Done")}<button class="small-link" data-do="export">Export my progress</button> · <button class="small-link" data-do="import">Restore backup</button><p style="font-size:10px;margin-top:17px">Saves stay in this browser. Backups restore coins, workshops, and records; unfinished runs are excluded on import.</p><p style="font-size:12px;margin-top:14px">On your phone, use your browser menu → Add to Home Screen. The published collection works offline after its first complete download.</p>${waitingWorker ? button("update-app", "Install ready update", "btn secondary") : ""}`,
   );
   modal.dataset.resume = wasPlaying ? "1" : "0";
 }
@@ -516,7 +615,7 @@ document.addEventListener("click", (e) => {
     );
     if (room) {
       openModal(
-        `<div class="eyebrow">YOUR MINIATURE NEIGHBORHOOD</div><h2>Project ${room.level}</h2><canvas id="room-visit" width="420" height="560" aria-label="Your restored miniature room"></canvas>${button("close-settings", "Back to the neighborhood")}`,
+        `<div class="eyebrow">YOUR MINIATURE NEIGHBORHOOD</div><h2>Project ${room.level}</h2><canvas id="room-visit" width="420" height="560" aria-label="Your restored miniature room"></canvas>${button(`edit-room:${room.level}`, "Rearrange & redecorate")}${button("close-settings", "Back to the neighborhood", "btn secondary")}`,
       );
       galleryScene = new (byId("worlds").Game)(
         room.seed,
@@ -525,6 +624,20 @@ document.addEventListener("click", (e) => {
         structuredClone(room.state),
       );
     }
+  } else if (a.startsWith("edit-room:")) {
+    const l = Number(a.split(":")[1]);
+    if (progress("worlds").active)
+      openModal(
+        `<h2>Revisit project ${l}?</h2><p>This replaces your unfinished Tiny Worlds adventure. Completed rooms and rewards stay saved.</p>${button(`edit-confirm:${l}`, "Open the studio")}${button("close-settings", "Keep my adventure", "btn secondary")}`,
+      );
+    else beginRoomEdit(l);
+  } else if (a.startsWith("edit-confirm:"))
+    beginRoomEdit(Number(a.split(":")[1]));
+  else if (a === "back-gallery") {
+    game = null;
+    run = null;
+    tab = "records";
+    lobby("worlds");
   } else if (a === "start") {
     const active = progress(selected.id).active;
     if (active && active.level !== level)
@@ -573,8 +686,9 @@ document.addEventListener("click", (e) => {
   } else if (a === "retry") {
     const oldSeed = run.seed;
     const daily = !!run.daily;
+    const dailyDate = run.daily;
     closeModal();
-    start({ fresh: true, seed: oldSeed, daily });
+    start({ fresh: true, seed: oldSeed, daily, dailyDate });
   } else if (a === "continue-next") {
     level = progress(selected.id).level;
     closeModal();
@@ -752,7 +866,7 @@ window.__arcade = {
   refreshHUD,
   snapshot,
   settle,
-  version: "0.2.0",
+  version: VERSION,
 };
 
 document.fonts.ready.then(() => {

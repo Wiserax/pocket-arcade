@@ -9,7 +9,7 @@ import {
   cannon,
   bar,
   panel,
-  creature,
+  scrapBot,
   coin,
   arrow,
   C,
@@ -507,7 +507,11 @@ export class Factory extends Game {
       rr(c, px - 6, py - 6, 12, 12, 3, C.gold);
     }
     for (const e of s.enemies) {
-      creature(
+      c.save();
+      c.beginPath();
+      c.rect(0, 76, 420, 344);
+      c.clip();
+      scrapBot(
         c,
         e.x,
         e.y,
@@ -540,6 +544,7 @@ export class Factory extends Game {
       if (e.type === 2) rr(c, e.x - 17, e.y, 15, 21, 4, "#859aad");
       if (e.type === 3) cannon(c, e.x, e.y, "#b89ce8", Math.PI / 2, 0.45);
       if (e.id === s.focus) circle(c, e.x, e.y, 29, "#ffffff00", C.gold, 2);
+      c.restore();
     }
     for (let i = 0; i < 2; i++) {
       const g = s.guns[i],

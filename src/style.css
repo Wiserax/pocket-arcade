@@ -1078,3 +1078,93 @@ h3 {
   color: #59412d;
   border-bottom-color: #b58a52;
 }
+.mastery-book {
+  margin-top: 28px;
+}
+.mastery-book h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.mastery-book h3 small {
+  color: #f6d371;
+}
+.mastery-card {
+  display: flex;
+  gap: 13px;
+  text-align: left;
+  padding: 15px;
+  margin: 11px 0;
+  background: #342b33;
+  border: 2px solid #66514a;
+  border-radius: 17px;
+}
+.mastery-card > div:last-child {
+  flex: 1;
+  min-width: 0;
+}
+.mastery-card strong {
+  color: #fff1cb;
+  font-size: 17px;
+}
+.mastery-card p {
+  margin: 4px 0 9px;
+  font-size: 13px;
+  color: #dacbb7;
+}
+.mastery-card small {
+  color: #ccb79a;
+  font-size: 11px;
+}
+.mastery-card.earned {
+  border-color: #cba058;
+  background: #514036;
+}
+.mastery-card.earned small {
+  color: #f9d774;
+}
+.mastery-mark {
+  padding-top: 3px;
+  flex: none;
+  opacity: 0.65;
+}
+.earned .mastery-mark {
+  opacity: 1;
+}
+.mastery-track {
+  height: 6px;
+  background: #241f27;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.mastery-track i {
+  display: block;
+  height: 100%;
+  background: #a5ce6e;
+  border-radius: inherit;
+}
+.new-mastery {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #725334;
+  border: 1px solid #d7aa60;
+  border-radius: 13px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.new-mastery strong,
+.new-mastery small {
+  display: block;
+}
+.new-mastery small {
+  color: #ffdb7a;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+.new-mastery strong {
+  font-size: 15px;
+  color: #fff0c8;
+}

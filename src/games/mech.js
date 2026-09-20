@@ -7,7 +7,7 @@ import {
   line,
   bar,
   panel,
-  creature,
+  scrapBot,
   gear,
   bolt,
   C,
@@ -605,7 +605,7 @@ export class Mech extends Game {
           "#ff726780",
           18,
         );
-      creature(
+      scrapBot(
         c,
         e.x,
         e.y,

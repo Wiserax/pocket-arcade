@@ -30,6 +30,17 @@ const ITEM_NAMES = [
   ["Birdbath", "Table", "Fern", "Books", "Armchair", "Sun lamp"],
   ["Easel", "Desk", "Reeds", "Paints", "Stool", "Lamp"],
 ];
+const FINISHES = [
+  { name: "Honey", wood: "#dcb580", accent: "#ffdfa0", pot: "#c28c67" },
+  { name: "Sea glass", wood: "#85b8bd", accent: "#bbebdf", pot: "#709ba8" },
+  { name: "Berry", wood: "#ca99af", accent: "#e6bce6", pot: "#aa789c" },
+];
+const PAINTS = [
+  null,
+  ["#94b6a0", "#bed1a2", "#d5dbb5", "#bdcaa2"],
+  ["#bc8d9d", "#e1b3b1", "#ecd4c7", "#dcbeb9"],
+  ["#778aa9", "#a6b8cf", "#cbd5de", "#b6c6d2"],
+];
 function iso(x, y) {
   return { x: 210 + (x - y) * 34, y: 255 + (x + y) * 18 };
 }
@@ -70,6 +81,9 @@ export class Worlds extends Game {
         fixes: 0,
         touches: 0,
         brushTime: 0,
+        palette: 0,
+        styles: [0, 0, 0, 0, 0, 0],
+        flips: [false, false, false, false, false, false],
       });
     }
   }
@@ -154,6 +168,25 @@ export class Worlds extends Game {
     }
   }
   action(id) {
+    if (id === "paint" && this.s.mode === "decorate") {
+      this.s.palette = (this.s.palette + 1) % 4;
+      this.audio("build");
+      this.emit(210, 200, "#fff0bd", 22);
+    }
+    if (id === "style" && this.s.mode === "decorate") {
+      const i = this.s.selected;
+      this.s.styles[i] = (this.s.styles[i] + 1) % 3;
+      const item = this.s.items.find((p) => p.type === i);
+      if (item) {
+        const p = iso(item.x, item.y);
+        this.emit(p.x, p.y, "#ffe5d4", 12);
+      }
+      this.audio("build");
+    }
+    if (id === "flip" && this.s.mode === "decorate") {
+      this.s.flips[this.s.selected] = !this.s.flips[this.s.selected];
+      this.audio("click");
+    }
     if (id === "finish" && this.s.placed === 6)
       this.end(true, "A little world brought to life!");
     if (id === "shuffle" && this.s.placed) {
@@ -176,6 +209,30 @@ export class Worlds extends Game {
   }
   actions() {
     return [
+      ...(this.s.mode === "decorate"
+        ? [
+            {
+              id: "paint",
+              label: "Paint the room",
+              sub: [
+                "Original palette",
+                "Sage garden",
+                "Rose clay",
+                "Blue evening",
+              ][this.s.palette],
+            },
+            {
+              id: "style",
+              label: FINISHES[this.s.styles[this.s.selected]].name,
+              sub: `Change ${this.names()[this.s.selected].toLowerCase()} finish`,
+            },
+            {
+              id: "flip",
+              label: "Turn furniture",
+              sub: this.names()[this.s.selected],
+            },
+          ]
+        : []),
       {
         id: "shuffle",
         label: "Try a new layout",
@@ -218,15 +275,17 @@ export class Worlds extends Game {
     c.save();
     c.translate(x, y);
     c.scale(scale, scale);
+    if (this.s.flips?.[type]) c.scale(-1, 1);
+    const finish = FINISHES[this.s.styles?.[type] || 0];
     shadow(c, 0, 4, 20);
     const theme = this.s.theme ?? 0;
     if (type === 0 && (theme === 0 || theme === 2)) {
-      rr(c, -17, -29, 34, 35, 5, "#bf8062");
+      rr(c, -17, -29, 34, 35, 5, finish.pot);
       rr(c, -11, -20, 22, 20, 5, "#4c3e46");
       circle(c, 0, -9, 7, "#ffc361", null);
     }
     if (type === 0 && (theme === 1 || theme === 4)) {
-      circle(c, 0, 0, 24, "#8bbfc9", "#647d92", 4);
+      circle(c, 0, 0, 24, finish.wood, "#647d92", 4);
       circle(c, 0, -4, 18, "#87dce5", null);
       rr(c, -5, -32, 10, 32, 4, "#bfd2bf");
       circle(c, 0, -34, 11, "#d7e1c7");
@@ -243,7 +302,7 @@ export class Worlds extends Game {
       }
     }
     if (type === 0 && theme === 3) {
-      circle(c, 0, -11, 20, "#8bb6a1");
+      circle(c, 0, -11, 20, finish.wood);
       rr(c, -11, -32, 22, 8, 3, "#cfb67b");
       line(
         c,
@@ -320,11 +379,11 @@ export class Worlds extends Game {
           [24, -10],
           [0, 2],
         ],
-        "#dcb580",
+        finish.wood,
       );
     }
     if (type === 2) {
-      rr(c, -10, -5, 20, 17, 3, "#c28c67");
+      rr(c, -10, -5, 20, 17, 3, finish.pot);
       circle(c, 0, -15, 16, "#7db978");
       circle(c, -10, -17, 10, "#a8d589");
       if (theme === 1 || theme === 3)
@@ -339,7 +398,7 @@ export class Worlds extends Game {
           );
     }
     if (type === 3) {
-      rr(c, -20, -39, 40, 43, 3, "#b58d6b");
+      rr(c, -20, -39, 40, 43, 3, finish.wood);
       for (let yy = -30; yy < 5; yy += 14) {
         line(
           c,
@@ -382,8 +441,8 @@ export class Worlds extends Game {
         "#8c6451",
         5,
       );
-      rr(c, -13, -31, 26, 18, 4, "#d5a286");
-      rr(c, -15, -13, 30, 10, 4, "#e6b59a");
+      rr(c, -13, -31, 26, 18, 4, finish.wood);
+      rr(c, -15, -13, 30, 10, 4, finish.accent);
     }
     if (type === 5) {
       line(
@@ -403,7 +462,7 @@ export class Worlds extends Game {
           [17, -22],
           [-17, -22],
         ],
-        "#ffdfa0",
+        finish.accent,
       );
       circle(c, 0, 5, 10, "#b99d70");
     }
@@ -412,6 +471,7 @@ export class Worlds extends Game {
   render(c) {
     const s = this.s,
       theme = THEMES[s.theme ?? 0];
+    const paint = PAINTS[s.palette || 0];
     bg(c, "#96bbb7", "#577a84");
     panel(
       c,
@@ -441,7 +501,7 @@ export class Worlds extends Game {
         [210, 245],
         [40, 335],
       ],
-      theme[2],
+      paint?.[1] || theme[2],
     );
     poly(
       c,
@@ -451,7 +511,7 @@ export class Worlds extends Game {
         [380, 335],
         [210, 245],
       ],
-      theme[1],
+      paint?.[0] || theme[1],
     );
     rr(c, 102, 208, 36, 50, 4, "#b2e3df", "#f4d6a7", 4);
     line(
@@ -482,7 +542,7 @@ export class Worlds extends Game {
           [p.x, p.y + 18],
           [p.x - 34, p.y],
         ],
-        (x + y) % 2 ? "#dbc394" : "#ecd6a6",
+        (x + y) % 2 ? paint?.[3] || "#dbc394" : paint?.[2] || "#ecd6a6",
         "#bca77e",
         1,
       );
@@ -509,13 +569,29 @@ export class Worlds extends Game {
         star(c, p.x, p.y - 3, 10, "#efcb69");
       }
     }
-    for (const i of [...s.items].sort((a, b) => a.x + a.y - b.x - b.y)) {
-      const p = iso(i.x, i.y);
-      this.item(c, p.x, p.y, i.type);
-    }
+    const entities = [...s.items];
     if (s.placed === 6) {
-      creature(c, 176 + Math.sin(s.time * 0.6) * 32, 334, 0, 12, s.time);
-      creature(c, 236 + Math.sin(s.time * 0.4) * 26, 367, 1, 12, s.time);
+      const free = s.floor.filter(
+        (p) => !s.items.some((i) => i.x === p.x && i.y === p.y),
+      );
+      for (let n = 0; n < 2 && free.length; n++) {
+        const a = free[Math.floor(free.length * (n ? 0.65 : 0.2))];
+        const b =
+          free.find((p) => Math.abs(p.x - a.x) + Math.abs(p.y - a.y) === 1) ||
+          a;
+        const t = (1 + Math.sin(s.time * 0.55 + n * 3)) / 2;
+        entities.push({
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          visitor: n,
+        });
+      }
+    }
+    for (const i of entities.sort((a, b) => a.x + a.y - b.x - b.y)) {
+      const p = iso(i.x, i.y);
+      if (i.visitor !== undefined)
+        creature(c, p.x, p.y - 8, i.visitor, 12, s.time);
+      else this.item(c, p.x, p.y, i.type);
     }
     if (s.mode === "decorate" && !s.done) {
       for (let i = 0; i < 6; i++) {
