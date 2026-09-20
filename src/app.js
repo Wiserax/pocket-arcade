@@ -953,7 +953,7 @@ if (
     .then((registration) => {
       const ready = () => {
         waitingWorker = registration.waiting;
-        if (waitingWorker)
+        if (waitingWorker && navigator.serviceWorker.controller)
           toast(
             "A new version is ready. Install it from Settings when you finish playing.",
           );
